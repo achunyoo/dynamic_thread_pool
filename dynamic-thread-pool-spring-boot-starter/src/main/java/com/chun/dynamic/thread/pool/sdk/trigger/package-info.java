@@ -5,4 +5,4 @@
  */
 
 
-package top.chun.dynamic.thread.pool.sdk.trigger;
+package com.chun.dynamic.thread.pool.sdk.trigger;

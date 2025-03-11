@@ -5,4 +5,4 @@
  */
 
 
-package top.chun.dynamic.thread.pool.sdk.domain;
+package com.chun.dynamic.thread.pool.sdk.domain;

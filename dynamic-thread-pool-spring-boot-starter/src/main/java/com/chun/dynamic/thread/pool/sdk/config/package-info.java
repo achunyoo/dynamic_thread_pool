@@ -6,4 +6,4 @@
 
 
 
-package top.chun.dynamic.thread.pool.sdk.config;
+package com.chun.dynamic.thread.pool.sdk.config;
