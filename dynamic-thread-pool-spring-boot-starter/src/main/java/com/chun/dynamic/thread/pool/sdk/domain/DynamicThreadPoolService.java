@@ -89,6 +89,4 @@ public class DynamicThreadPoolService implements IDynamicThreadPoolService{
         threadPoolExecutor.setMaximumPoolSize(threadPoolConfigEntity.getMaximumPoolSize());
     }
 
-
-}
 }
