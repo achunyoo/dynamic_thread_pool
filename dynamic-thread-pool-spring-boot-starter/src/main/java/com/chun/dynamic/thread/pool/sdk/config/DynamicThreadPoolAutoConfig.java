@@ -2,11 +2,16 @@ package com.chun.dynamic.thread.pool.sdk.config;
 
 import com.alibaba.fastjson2.JSON;
 import com.chun.dynamic.thread.pool.sdk.domain.DynamicThreadPoolService;
+import com.chun.dynamic.thread.pool.sdk.domain.IDynamicThreadPoolService;
+import com.chun.dynamic.thread.pool.sdk.domain.model.entity.ThreadPoolConfigEntity;
+import com.chun.dynamic.thread.pool.sdk.domain.model.valobj.RegistryEnumVO;
 import com.chun.dynamic.thread.pool.sdk.registry.IRegistry;
 import com.chun.dynamic.thread.pool.sdk.registry.redis.RedisRegistry;
 import com.chun.dynamic.thread.pool.sdk.trigger.job.ThreadPoolDataReportJob;
+import com.chun.dynamic.thread.pool.sdk.trigger.listener.ThreadPoolConfigAdjustListener;
 import org.apache.commons.lang.StringUtils;
 import org.redisson.Redisson;
+import org.redisson.api.RTopic;
 import org.redisson.api.RedissonClient;
 import org.redisson.codec.JsonJacksonCodec;
 import org.redisson.config.Config;
@@ -32,7 +37,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 @EnableScheduling
 public class DynamicThreadPoolAutoConfig {
     private final Logger logger = LoggerFactory.getLogger(DynamicThreadPoolAutoConfig.class);
-
+    private String applicationName;
 
     @Bean("dynamicThreadRedissonClient")
     public RedissonClient redissonClient(DynamicThreadPoolAutoProperties properties) {
@@ -65,20 +70,46 @@ public class DynamicThreadPoolAutoConfig {
     }
 
 
-    @Bean("dynamicThreadPoolService")
-    public DynamicThreadPoolService dynamicThreadPoolService(ApplicationContext applicationContext, Map<String,ThreadPoolExecutor> threadPoolExecutorMap) {
-        String applicationName = applicationContext.getEnvironment().getProperty("spring.application.name");
+    @Bean("dynamicThreadPollService")
+    public DynamicThreadPoolService dynamicThreadPollService(ApplicationContext applicationContext, Map<String, ThreadPoolExecutor> threadPoolExecutorMap, RedissonClient redissonClient) {
+        applicationName = applicationContext.getEnvironment().getProperty("spring.application.name");
 
-        if(StringUtils.isBlank(applicationName)){
+        if (StringUtils.isBlank(applicationName)) {
             applicationName = "缺省的";
-            logger.warn("动态线程池，启动提示。SpringBoot应用未配置 spting.application.name 无法获取应用名称");
+            logger.warn("动态线程池，启动提示。SpringBoot 应用未配置 spring.application.name 无法获取到应用名称！");
         }
 
-        return new DynamicThreadPoolService(applicationName,threadPoolExecutorMap);
+        // 获取缓存数据，设置本地线程池配置
+        Set<String> threadPoolKeys = threadPoolExecutorMap.keySet();
+        for (String threadPoolKey : threadPoolKeys) {
+            ThreadPoolConfigEntity threadPoolConfigEntity = redissonClient.<ThreadPoolConfigEntity>getBucket(RegistryEnumVO.THREAD_POOL_CONFIG_PARAMETER_LIST_KEY.getKey() + "_" + applicationName + "_" + threadPoolKey).get();
+            if (null == threadPoolConfigEntity) {
+                continue;
+            }
+            ThreadPoolExecutor threadPoolExecutor = threadPoolExecutorMap.get(threadPoolKey);
+            threadPoolExecutor.setCorePoolSize(threadPoolConfigEntity.getCorePoolSize());
+            threadPoolExecutor.setMaximumPoolSize(threadPoolConfigEntity.getMaximumPoolSize());
+        }
+
+        return new DynamicThreadPoolService(applicationName, threadPoolExecutorMap);
     }
+
 
     @Bean
     public ThreadPoolDataReportJob threadPoolDataReportJob(DynamicThreadPoolService dynamicThreadPoolService, IRegistry registry) {
         return new ThreadPoolDataReportJob(dynamicThreadPoolService, registry);
     }
+
+    @Bean
+    public ThreadPoolConfigAdjustListener threadPoolConfigAdjustListener(IDynamicThreadPoolService dynamicThreadPoolService, IRegistry registry) {
+        return new ThreadPoolConfigAdjustListener(dynamicThreadPoolService, registry);
+    }
+
+    @Bean(name = "dynamicThreadPoolRedisTopic")
+    public RTopic threadPoolConfigAdjustListener(RedissonClient redissonClient, ThreadPoolConfigAdjustListener threadPoolConfigAdjustListener){
+        RTopic topic = redissonClient.getTopic(RegistryEnumVO.DYNAMIC_THREAD_POOL_REDIS_TOPIC.getKey() + "_" + applicationName);
+        topic.addListener(ThreadPoolConfigEntity.class,threadPoolConfigAdjustListener);
+        return topic;
+    }
+
 }
