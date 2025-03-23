@@ -27,9 +27,9 @@ public class DynamicThreadPoolController {
 
     /**
      * 查询线程池数据
-     * curl --request GET \
-     * --url 'http://localhost:8089/api/v1/dynamic/thread/pool/query_thread_pool_list'
+     * curl --request GET \--url 'http://localhost:8089/api/v1/dynamic/thread/pool/query_thread_pool_list'
      */
+
     @RequestMapping(value = "query_thread_pool_list", method = RequestMethod.GET)
     public Response<List<ThreadPoolConfigEntity>> queryThreadPoolList() {
         try {
